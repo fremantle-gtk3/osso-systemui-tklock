@@ -77,6 +77,7 @@ void
 ee_create_window(tklock_plugin_data *plugin_data)
 {
   Display *dpy;
+  GdkDisplay *display;
   GdkScreen *screen;
   Window window;
   XVisualInfo vinfo;
@@ -91,7 +92,8 @@ ee_create_window(tklock_plugin_data *plugin_data)
   if(ee_window)
     return;
 
-  dpy = gdk_x11_display_get_xdisplay(gdk_display_get_default());
+  display = gdk_display_get_default();
+  dpy = gdk_x11_display_get_xdisplay(display);
   screen = gdk_screen_get_default();
 
   XMatchVisualInfo(dpy, DefaultScreen(dpy), 32, VisualDepthMask, &vinfo);
@@ -142,7 +144,11 @@ ee_create_window(tklock_plugin_data *plugin_data)
   XFreeColormap(dpy, cmap);
 
   plugin_data->one_input_mode_event = 0;
+#if HAVE_GTK3
+  ee_window = gdk_x11_window_foreign_new_for_display(display, window);
+#else
   ee_window = gdk_window_foreign_new(window);
+#endif
   gdk_window_add_filter(ee_window,
                         one_input_event_eater_cb,
                         plugin_data);

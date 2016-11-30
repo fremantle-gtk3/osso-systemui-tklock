@@ -763,9 +763,15 @@ vtklock_create_event_icons(vtklock_t *vtklock, gboolean force_fake_portrait)
 static void
 set_gdk_property(GtkWidget *widget, GdkAtom property, gboolean value)
 {
+#if HAVE_GTK3
+  if(gtk_widget_get_realized(widget))
+  {
+    gdk_property_change(gtk_widget_get_window(widget),
+#else
   if(GTK_WIDGET_REALIZED(widget))
   {
     gdk_property_change(widget->window,
+#endif
                         property,
                         gdk_x11_xatom_to_atom(XA_CARDINAL),
                         32,
@@ -810,8 +816,9 @@ visual_tklock_create_slider(gboolean force_fake_portrait)
     gtk_widget_set_size_request(slider, -1, 440);
   else
     gtk_widget_set_size_request(slider, 440, -1);
-
+#ifndef HAVE_GTK3 /* FIXME - replace with release event fro gtk 3 */
   gtk_range_set_update_policy(GTK_RANGE(slider), GTK_UPDATE_DISCONTINUOUS);
+#endif
   gtk_range_set_range(GTK_RANGE(slider),0.0, 40.0);
   gtk_range_set_value(GTK_RANGE(slider), 3.0);
 
@@ -822,6 +829,7 @@ visual_tklock_create_slider(gboolean force_fake_portrait)
 static void
 fill_background(vtklock_t *vtklock, gboolean portrait, gboolean fake)
 {
+#ifndef HAVE_GTK3 /* FIXME */
   GdkPixbuf *pixbuf;
   GdkPixmap *bg_pixmap = NULL;
 
@@ -868,6 +876,10 @@ fill_background(vtklock_t *vtklock, gboolean portrait, gboolean fake)
     GdkColor color = {0, 0, 0, 128};
     gtk_widget_modify_bg(vtklock->window, GTK_STATE_NORMAL, &color);
   }
+#else
+  GdkColor color = {0, 0, 0, 128};
+  gtk_widget_modify_bg(vtklock->window, GTK_STATE_NORMAL, &color);
+#endif
 }
 
 static gboolean
@@ -1078,7 +1090,12 @@ visual_tklock_present_view(vtklock_t *vtklock)
   gtk_widget_realize(vtklock->window);
   gdk_flush();
   ipm_show_window(vtklock->window, vtklock->priority);
+#if HAVE_GTK3
+  gdk_window_invalidate_rect(gtk_widget_get_window(vtklock->window), NULL,
+                             TRUE);
+#else
   gdk_window_invalidate_rect(vtklock->window->window, NULL, TRUE);
+#endif
   gdk_window_process_all_updates();
   gdk_flush();
 
@@ -1121,7 +1138,12 @@ slider_change_value_cb(GtkRange     *range,
 
   if((3.0 - value) < 0.5)
   {
+#if HAVE_GTK3
+    if(fabs(value - gtk_adjustment_get_upper(vtklock->slider_adjustment)) <
+       0.899999976)
+#else
     if(fabs(value - vtklock->slider_adjustment->upper) < 0.899999976)
+#endif
     {
       vtklock->slider_status = 4;
 
@@ -1150,13 +1172,18 @@ slider_value_changed_cb(GtkRange *range,
   if(vtklock->slider_status != 4)
   {
     gdouble value;
-
+#if HAVE_GTK3
+    gdouble upper = gtk_adjustment_get_upper(vtklock->slider_adjustment);
+#else
+    gdouble upper = vtklock->slider_adjustment->upper;
+#endif
     value = gtk_range_get_value(range);
 
-    if(fabs(vtklock->slider_adjustment->upper-value) < 5.0)
+    if(fabs(upper - value) < 5.0)
     {
-      gtk_range_set_value(GTK_RANGE(vtklock->slider), vtklock->slider_adjustment->upper);
-      vtklock->slider_value = vtklock->slider_adjustment->upper;
+      gtk_range_set_value(GTK_RANGE(vtklock->slider), upper);
+      vtklock->slider_value = upper;
+
       if(vtklock->unlock_handler)
         vtklock->unlock_handler();
     }
